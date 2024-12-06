@@ -166,7 +166,7 @@ class Batch(_BatchBase):
         request_options=None,
         max_commit_delay=None,
         exclude_txn_from_change_streams=False,
-        **kwargs
+        **kwargs,
     ):
         """Commit mutations to the database.
 

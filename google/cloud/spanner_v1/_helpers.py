@@ -28,15 +28,14 @@ from google.protobuf.internal.enum_type_wrapper import EnumTypeWrapper
 
 from google.api_core import datetime_helpers
 from google.api_core.exceptions import Aborted
-from google.api_core.exceptions import Aborted
 from google.cloud._helpers import _date_from_iso8601_date
 from google.cloud.spanner_v1 import TypeCode
 from google.cloud.spanner_v1 import ExecuteSqlRequest
 from google.cloud.spanner_v1 import JsonObject
+from google.cloud.spanner_v1.request_id_header import with_request_id
 from google.rpc.error_details_pb2 import RetryInfo
 
 import random
-from google.cloud.spanner_v1.request_id_header import with_request_id
 
 # Validation error messages
 NUMERIC_MAX_SCALE_ERR_MSG = (
@@ -472,14 +471,8 @@ def _retry(
     allowed_exceptions=None,
     beforeNextRetry=None,
     deadline=None,
-    deadline=None,
 ):
     """
-    Retry a specified function with different logic based on the type of exception raised.
-
-    If the exception is of type google.api_core.exceptions.Aborted,
-    apply an alternate retry strategy that relies on the provided deadline value instead of a fixed number of retries.
-    For all other exceptions, retry the function up to a specified number of times.
     Retry a specified function with different logic based on the type of exception raised.
 
     If the exception is of type google.api_core.exceptions.Aborted,
@@ -490,7 +483,6 @@ def _retry(
         func: The function to be retried.
         retry_count: The maximum number of times to retry the function.
         deadline: This will be used in case of Aborted transactions.
-        deadline: This will be used in case of Aborted transactions.
         delay: The delay in seconds between retries.
         allowed_exceptions: A tuple of exceptions that are allowed to occur without triggering a retry.
                             Passing allowed_exceptions as None will lead to retrying for all exceptions.
@@ -500,21 +492,12 @@ def _retry(
     """
     retries = 0
     while True:
-    while True:
         if retries > 0 and beforeNextRetry:
             beforeNextRetry(retries, delay)
 
         try:
             return func()
         except Exception as exc:
-            if isinstance(exc, Aborted) and deadline is not None:
-                if (
-                    allowed_exceptions is not None
-                    and allowed_exceptions.get(exc.__class__) is not None
-                ):
-                    retries += 1
-                    _delay_until_retry(exc, deadline=deadline, attempts=retries)
-                    continue
             if isinstance(exc, Aborted) and deadline is not None:
                 if (
                     allowed_exceptions is not None

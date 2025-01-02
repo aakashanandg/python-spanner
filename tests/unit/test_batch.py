@@ -294,6 +294,33 @@ class TestBatch(_BaseTest, OpenTelemetryBase):
             api.commit.call_count, 1, "commit should be called more than once"
         )
 
+    def test_aborted_exception_on_commit_with_retries(self):
+        # Test case to verify that an Aborted exception is raised when
+        # batch.commit() is called and the transaction is aborted internally.
+        from google.api_core.exceptions import Aborted
+
+        database = _Database()
+        # Setup the spanner API which throws Aborted exception when calling commit API.
+        api = database.spanner_api = _FauxSpannerAPI(_aborted_error=True)
+        api.commit = MagicMock(
+            side_effect=Aborted("Transaction was aborted", errors=("Aborted error"))
+        )
+
+        # Create mock session and batch objects
+        session = _Session(database)
+        batch = self._make_one(session)
+        batch.insert(TABLE_NAME, COLUMNS, VALUES)
+
+        # Assertion: Ensure that calling batch.commit() raises the Aborted exception
+        with self.assertRaises(Aborted) as context:
+            batch.commit()
+
+        # Verify additional details about the exception
+        self.assertEqual(str(context.exception), "409 Transaction was aborted")
+        self.assertGreater(
+            api.commit.call_count, 1, "commit should be called more than once"
+        )
+
     def _test_commit_with_options(
         self,
         request_options=None,

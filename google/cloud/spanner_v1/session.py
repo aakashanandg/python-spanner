@@ -23,6 +23,7 @@ from google.api_core.exceptions import GoogleAPICallError
 from google.api_core.exceptions import NotFound
 from google.api_core.gapic_v1 import method
 from google.cloud.spanner_v1._helpers import _delay_until_retry
+from google.cloud.spanner_v1._helpers import _delay_until_retry
 
 from google.cloud.spanner_v1 import ExecuteSqlRequest
 from google.cloud.spanner_v1 import CreateSessionRequest
@@ -483,19 +484,47 @@ class Session(object):
             else:
                 txn = self._transaction
 
-            try:
-                attempts += 1
-                return_value = func(txn, *args, **kw)
-            except Aborted as exc:
-                del self._transaction
-                _delay_until_retry(exc, deadline, attempts)
-                continue
-            except GoogleAPICallError:
-                del self._transaction
-                raise
-            except Exception:
-                txn.rollback()
-                raise
+                span_attributes = dict()
+
+                try:
+                    attempts += 1
+                    span_attributes["attempt"] = attempts
+                    txn_id = getattr(txn, "_transaction_id", "") or ""
+                    if txn_id:
+                        span_attributes["transaction.id"] = txn_id
+
+                    return_value = func(txn, *args, **kw)
+
+                except Aborted as exc:
+                    del self._transaction
+                    if span:
+                        delay_seconds = _get_retry_delay(exc.errors[0], attempts)
+                        attributes = dict(delay_seconds=delay_seconds, cause=str(exc))
+                        attributes.update(span_attributes)
+                        add_span_event(
+                            span,
+                            "Transaction was aborted in user operation, retrying",
+                            attributes,
+                        )
+
+                    _delay_until_retry(exc, deadline, attempts)
+                    continue
+                except GoogleAPICallError:
+                    del self._transaction
+                    add_span_event(
+                        span,
+                        "User operation failed due to GoogleAPICallError, not retrying",
+                        span_attributes,
+                    )
+                    raise
+                except Exception:
+                    add_span_event(
+                        span,
+                        "User operation failed. Invoking Transaction.rollback(), not retrying",
+                        span_attributes,
+                    )
+                    txn.rollback()
+                    raise
 
             try:
                 txn.commit(

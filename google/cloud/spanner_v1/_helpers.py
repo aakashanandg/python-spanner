@@ -468,7 +468,7 @@ def _retry(
     delay=2,
     allowed_exceptions=None,
     beforeNextRetry=None,
-    deadline = None
+    deadline=None,
 ):
     """
     Retry a specified function with different logic based on the type of exception raised.
@@ -497,7 +497,10 @@ def _retry(
             return func()
         except Exception as exc:
             if isinstance(exc, Aborted) and deadline is not None:
-                if allowed_exceptions is not None and allowed_exceptions.get(exc.__class__) is not None:
+                if (
+                    allowed_exceptions is not None
+                    and allowed_exceptions.get(exc.__class__) is not None
+                ):
                     retries += 1
                     _delay_until_retry(exc, deadline=deadline, attempts=retries)
                     continue
@@ -556,7 +559,7 @@ def _delay_until_retry(exc, deadline, attempts):
     :type attempts: int
     :param attempts: number of call retries
     """
-    
+
     cause = exc.errors[0]
     now = time.time()
     if now >= deadline:
@@ -582,9 +585,9 @@ def _get_retry_delay(cause, attempts):
     :type attempts: int
     :param attempts: number of call retries
     """
-    if hasattr(cause, 'trailing_metadata'):
+    if hasattr(cause, "trailing_metadata"):
         metadata = dict(cause.trailing_metadata())
-    else: 
+    else:
         metadata = {}
     retry_info_pb = metadata.get("google.rpc.retryinfo-bin")
     if retry_info_pb is not None:

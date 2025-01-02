@@ -1817,7 +1817,7 @@ class TestBatchCheckout(_BaseTest):
         api = database.spanner_api = self._make_spanner_client()
         api.commit.return_value = response
         pool = database._pool = _Pool()
-        session = _Session(database, run_transaction_function = True)
+        session = _Session(database, run_transaction_function=True)
         pool.put(session)
         checkout = self._make_one(
             database, request_options={"transaction_tag": self.TRANSACTION_TAG}
@@ -1866,7 +1866,7 @@ class TestBatchCheckout(_BaseTest):
         api = database.spanner_api = self._make_spanner_client()
         api.commit.return_value = response
         pool = database._pool = _Pool()
-        session = _Session(database, run_transaction_function = True)
+        session = _Session(database, run_transaction_function=True)
         pool.put(session)
         checkout = self._make_one(database)
 
@@ -1910,7 +1910,7 @@ class TestBatchCheckout(_BaseTest):
         api = database.spanner_api = self._make_spanner_client()
         api.commit.side_effect = Unknown("testing")
         pool = database._pool = _Pool()
-        session = _Session(database, run_transaction_function = True)
+        session = _Session(database, run_transaction_function=True)
         pool.put(session)
         checkout = self._make_one(database)
 
@@ -1946,7 +1946,7 @@ class TestBatchCheckout(_BaseTest):
 
         database = _Database(self.DATABASE_NAME)
         pool = database._pool = _Pool()
-        session = _Session(database, run_transaction_function = True)
+        session = _Session(database, run_transaction_function=True)
         pool.put(session)
         checkout = self._make_one(database)
 
@@ -3093,6 +3093,7 @@ class TestMutationGroupsCheckout(_BaseTest):
         # Assert that session-1 was not removed from pool.
         self.assertEqual(pool._session, session)
         pool._new_session.assert_not_called()
+
 
 def _make_instance_api():
     from google.cloud.spanner_admin_instance_v1 import InstanceAdminClient

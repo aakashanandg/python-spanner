@@ -23,7 +23,7 @@ from google.api_core.exceptions import Aborted
 from google.api_core.exceptions import GoogleAPICallError
 from google.api_core.exceptions import NotFound
 from google.api_core.gapic_v1 import method
-from google.rpc.error_details_pb2 import RetryInfo
+from google.cloud.spanner_v1._helpers import _delay_until_retry
 
 from google.cloud.spanner_v1 import ExecuteSqlRequest
 from google.cloud.spanner_v1 import CreateSessionRequest
@@ -461,6 +461,7 @@ class Session(object):
             "exclude_txn_from_change_streams", None
         )
         attempts = 0
+<<<<<<< HEAD
 
         observability_options = getattr(self._database, "observability_options", None)
         with trace_call(
@@ -474,6 +475,47 @@ class Session(object):
                     txn.transaction_tag = transaction_tag
                     txn.exclude_txn_from_change_streams = (
                         exclude_txn_from_change_streams
+=======
+        while True:
+            if self._transaction is None:
+                txn = self.transaction()
+                txn.transaction_tag = transaction_tag
+                txn.exclude_txn_from_change_streams = exclude_txn_from_change_streams
+            else:
+                txn = self._transaction
+
+            try:
+                attempts += 1
+                return_value = func(txn, *args, **kw)
+            except Aborted as exc:
+                del self._transaction
+                _delay_until_retry(exc, deadline, attempts)
+                continue
+            except GoogleAPICallError:
+                del self._transaction
+                raise
+            except Exception:
+                txn.rollback()
+                raise
+
+            try:
+                txn.commit(
+                    return_commit_stats=self._database.log_commit_stats,
+                    request_options=commit_request_options,
+                    max_commit_delay=max_commit_delay,
+                )
+            except Aborted as exc:
+                del self._transaction
+                _delay_until_retry(exc, deadline, attempts)
+            except GoogleAPICallError:
+                del self._transaction
+                raise
+            else:
+                if self._database.log_commit_stats and txn.commit_stats:
+                    self._database.logger.info(
+                        "CommitStats: {}".format(txn.commit_stats),
+                        extra={"commit_stats": txn.commit_stats},
+>>>>>>> 5ebd122 (fix: update retry strategy for mutation calls to handle aborted transactions)
                     )
                 else:
                     txn = self._transaction
@@ -556,55 +598,3 @@ class Session(object):
                     return return_value
 
 
-# Rational:  this function factors out complex shared deadline / retry
-#            handling from two `except:` clauses.
-def _delay_until_retry(exc, deadline, attempts):
-    """Helper for :meth:`Session.run_in_transaction`.
-
-    Detect retryable abort, and impose server-supplied delay.
-
-    :type exc: :class:`google.api_core.exceptions.Aborted`
-    :param exc: exception for aborted transaction
-
-    :type deadline: float
-    :param deadline: maximum timestamp to continue retrying the transaction.
-
-    :type attempts: int
-    :param attempts: number of call retries
-    """
-    cause = exc.errors[0]
-
-    now = time.time()
-
-    if now >= deadline:
-        raise
-
-    delay = _get_retry_delay(cause, attempts)
-    if delay is not None:
-        if now + delay > deadline:
-            raise
-
-        time.sleep(delay)
-
-
-def _get_retry_delay(cause, attempts):
-    """Helper for :func:`_delay_until_retry`.
-
-    :type exc: :class:`grpc.Call`
-    :param exc: exception for aborted transaction
-
-    :rtype: float
-    :returns: seconds to wait before retrying the transaction.
-
-    :type attempts: int
-    :param attempts: number of call retries
-    """
-    metadata = dict(cause.trailing_metadata())
-    retry_info_pb = metadata.get("google.rpc.retryinfo-bin")
-    if retry_info_pb is not None:
-        retry_info = RetryInfo()
-        retry_info.ParseFromString(retry_info_pb)
-        nanos = retry_info.retry_delay.nanos
-        return retry_info.retry_delay.seconds + nanos / 1.0e9
-
-    return 2**attempts + random.random()

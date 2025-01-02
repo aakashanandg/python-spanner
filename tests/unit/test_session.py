@@ -1919,7 +1919,7 @@ class TestSession(OpenTelemetryBase):
 
         with mock.patch("time.time", _time_func):
             with mock.patch(
-                "google.cloud.spanner_v1.session._get_retry_delay"
+                "google.cloud.spanner_v1._helpers._get_retry_delay"
             ) as get_retry_delay_mock:
                 with mock.patch("time.sleep") as sleep_mock:
                     get_retry_delay_mock.return_value = None

@@ -15,7 +15,6 @@
 """Wrapper for Cloud Spanner Session objects."""
 
 from functools import total_ordering
-import random
 import time
 from datetime import datetime
 
@@ -596,5 +595,3 @@ class Session(object):
                             extra={"commit_stats": txn.commit_stats},
                         )
                     return return_value
-
-
